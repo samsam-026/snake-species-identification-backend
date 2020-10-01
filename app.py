@@ -82,6 +82,14 @@ def transform_image(preprocessed_image):
         return {"message": "A Transform error has occurred"}
 
 
+def get_base64_image(preprocessed_image):
+    proc_img = Image.fromarray(preprocessed_image)
+    buffer = io.BytesIO()
+    proc_img.save(buffer, format="JPEG")
+    buffer_img = buffer.getvalue()
+    return base64.b64encode(buffer_img).decode()
+
+
 def get_add_data(form):
     values = [float(form['lat']), float(form['lng']),
               int(form['hour']), int(form['minute'])]
@@ -171,6 +179,8 @@ def predict():
 
             preprocessed_image = preprocess_image(img_bytes)
 
+            base64_img = get_base64_image(preprocessed_image)
+
             add_data = None
             if "lat" in request.form:
                 add_data = torch.from_numpy(get_add_data(request.form))
@@ -189,7 +199,8 @@ def predict():
                     **species_val,
                     "confidence": values["confidence"],
                     "standardDev": values["standardDev"],
-                    "time": current_time
+                    "time": current_time,
+                    "processedImage": base64_img
                 }}), 200
             else:
                 return jsonify({"error": values}), 400
