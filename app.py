@@ -17,6 +17,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 from image_processing import preprocess_image
 from custom_model import CustomModel
+from custom_model_with_location import CustomModelLoc
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -27,15 +28,19 @@ class_index = json.load(open('class_index.json'))
 # Open and load model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-state = torch.load("models/custom_model.pth", map_location=device)
+state = torch.load("custom_model.pth", map_location=device)
 model = CustomModel(5)
 model.load_state_dict(state)
 model = model.to(device)
 
+state_loc = torch.load("custom_model_with_location.pth", map_location=device)
+model_loc = CustomModelLoc(5)
+model_loc.load_state_dict(state_loc)
+model = model.to(device)
+
 # switch to `eval` mode for testing
 model.eval()
-
-class_index = json.load(open('class_index.json'))
+model_loc.eval()
 
 # Values for image transformation
 mean_nums = [0.485, 0.456, 0.406]
@@ -67,7 +72,10 @@ def get_prediction(image_bytes, add_data=None):
         tensor = transform_image(image_bytes)
         if type(tensor) != dict:
 
-            outputs = model(tensor)
+            if add_data is None:
+                outputs = model(tensor)
+            else:
+                outputs = model_loc(tensor, add_data.float())
 
             _, preds = torch.max(outputs, 1)
             predicted_idx = preds.item()
@@ -110,6 +118,9 @@ def predict():
             preprocessed_image = preprocess_image(img_bytes)
 
             add_data = None
+            if "lat" in request.form:
+                add_data = torch.from_numpy(get_add_data(request.form))
+                add_data = add_data.to(device)
 
             values = get_prediction(preprocessed_image, add_data)
             if type(values) == dict and "classId" in values:
